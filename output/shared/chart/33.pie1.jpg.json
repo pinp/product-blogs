@@ -1,0 +1,9 @@
+{
+  "name":"pinp/blogs/step1",
+  "widget":[ ["P",{"width":300,"height":260,"data-dsn-sizes":"pie1","$for":""}],
+    ["RefSpan",{ "$":".pinp.charts.pie", "key":"pie1",
+      "$style":"{width:duals(-1).width+'px',height:duals(-1).height+'px'}",
+      "html.":"labels=One,Two,Three,Four,Five,Six\ntitle.text=\nlegend.display=true\nlegend.position=right\nlegend.showPercent=false\n---\n\nbackgroundColor=\n64 12 30 82 56 36\n"
+    }]
+  ]
+}
