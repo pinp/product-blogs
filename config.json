@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_modify": 1513851867250,
+  "last_modify": 1513862634222,
   "user_name": "rewgt",
   "imported_repos": [
     [
@@ -25,9 +25,10 @@
       "tag": ".数据库",
       "markdown": true,
       "title": "为 no-sql 数据库设计一套通用的 SQL",
-      "modify_at": 1513847261786,
+      "modify_at": 1513862634222,
       "create_at": 1513730977617,
-      "desc": "本文介绍 dynamo-sql 项目开发的初衷、设计目标、以及实现要点。"
+      "desc": "本文介绍 dynamo-sql 项目开发的初衷、设计目标、以及实现要点。",
+      "thumb": "md/res/D171220-02/no_sql.jpg"
     }
   ]
 }
