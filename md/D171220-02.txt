@@ -1,0 +1,293 @@
+dynamo-sql 语法规格
+----------
+
+&nbsp;
+
+本文介绍 dynamo-sql 的语法规格，包括数据类型、SQL 词法规则、语法规则等。
+
+&nbsp;
+
+### 1. 概述
+
+dynamo-sql 库为 AWS DynamoDB 提供类 SQL 封装，该 SQL-like 语言不仅支持常见的 SELECT 查询，还支持用 GET 以主键定位一条记录，支持用 PUT 或 UPDATE 更新指定记录，支持用 DELETE 删除记录，另外还支持用 SCAN 构造适应于 map-reduce 形态的全表扫描。我们将此种 SQL 称为 DynamoSQL，以示与常规 SQL 存在区别，在本文，DynamoSQL 简写为 D-SQL。
+
+开发者编写 D-SQL 语句后，按如下方式生成 sql 实例：
+
+``` js
+var sql = dynSql.newSql('SELECT ALL from table_test WHERE sId="abc" ON limit=@limit');
+```
+
+这个 sql 实例按如下方式调用时，系统将它转化为符合 DynamoDB API 要求的参数格式，然后再由 AWS-SDK 实施数据库操作。
+
+``` js
+sql.process({limit:20}, function(err,data) {
+  if (err) {
+    console.log(err);
+    return;
+  }
+  console.log(data);
+});
+```
+
+### 2. 数据类型
+
+我们可以将 DynamoDB 数据库理解为分布式保存到各分区的众多表格的集合，各表关联关系由多级索引机制实现串联，如主键、本地二级索引 LSI、全局二级索引 GSI。各表由若干字段（Field）组成，各字段所支持的数据类型，将反映为 D-SQL 语句中各操作数的数据类型。
+
+D-SQL 支持如下数据类型：
+
+1. Number，包括浮点数与整数
+2. String，字符串
+3. List, 列表，对应于 javascript 中的 Array
+4. Map，映射，对应于 javascript 中的 Object
+5. Set，集合，包括：Number Set 与 String Set
+
+说明：
+1. D-SQL 基于 DynamoDB 做设计，但其语言规格不限于仅在 DynamoDB 使用，我们尝试抽像出更通用的规格制式，以便让其它厂商的类 dynamoDB 的 no-sql 数据库也适用。
+2. List 与 Map 在 DynamoDB 手册中也合称为文档类型（Document Types）
+3. D-SQL 弱化了 DynamoDB 中的二进制类型，不妨改作 String 方式来处理
+4. D-SQL 忽略了 bool 与 null 数据类型
+
+针对这些数据类型，D-SQL 支持如下立即数表达方式：
+1. Number，正则表达式为：`[0-9]+(?:\.[0-9]+)?`，Number 常量可以取负值。
+2. String，要求用双引号括起来，正则表达式为：`"(?:\\.|[^"])*"`
+3. TRUE 与 FALSE，这两项用作常量，TRUE 视为值 1，后者视为值 0
+
+### 3. 变量引用
+
+一个 D-SQL 语句生成 sql 实例后，可以多次调用 `sql.process()` 实现多次数据库操作，在 D-SQL 语句中使用变量，可以让各次数据库操作有所变化。比如这个语句：
+
+``` sql
+SELECT ALL FROM table_test WHERE sId=@sId
+```
+
+每次用 `sql.process({sId:xxx},callback)` 查询时，改变传入参数 sId 的值，查询结果就各不相同。
+
+在 D-SQL 中使用 `@` 指示变量引用。
+
+### 4. 动作子句与附属从句
+
+D-SQL 采用一个动作子句（Action Clause），叠加若干附属从句（Sub Clause）的方式描述数据库操作，动作子句有 6 种，包括：GET、PUT、UPDATE、DELETE、SELECT、SCAN，附属从句则有 BY、WHEN、WHERE、FILTER、ON、SET、RMV、ADD、DEL 这几种。
+
+六种动作子句的功能如下：
+
+1. `GET`，用主键提取单条记录。其后可跟 WHEN 与 ON 从句。
+2. `PUT`，列出各字段取值提交一条记录，如果该记录已存在，就覆盖原记录。其后可跟 SET、WHERE、ON 从句。
+3. `UPDATE`，更新指定主键的某条记录，更新指定字段取值，如果该记录尚不存在则新建这条记录。其后可跟 WHEN、WHERE、ON，以及 SET、RMV、ADD、DEL 从句。
+4. `DELETE`，删除指定主键的某条记录，其后可跟 WHEN、WHERE、ON 从句。
+5. `SELECT`，查询符合条件的若干条记录，其后可跟 BY、WHERE、FILTER、ON 从句。
+6. `SCAN`，全表扫描，其后可跟 BY、FILTER、ON 从句。
+
+各个附属从句的功能如下：
+
+1. `BY`，指示索引项
+2. `WHEN`，指示主键，包括分区键与排序键
+3. `WHERE`，指示条件项
+4. `FILTER`，指示过滤项
+5. `ON`，指示配置项
+6. `SET, RMV, ADD, DEL`，这几项用来更新数据，SET 用来设置数据，RMV 用来删数据（删字段或删数组成同），ADD 与 DEL 用来增删集合项。
+
+### 5. D-SQL 的语法定义
+
+动作子句定义：
+
+```
+action_clause : select_clause | get_clause | scan_clause | put_clause | update_clause | delete_clause
+
+select_clause_1 : SELECT name_list FROM table_name
+select_clause_2 : SELECT ( name_list ) FROM table_name
+select_clause_3 : SELECT range_id FROM table_name
+
+get_clause_1 : GET name_list FROM table_name
+get_clause_2 : GET ( name_list ) FROM table_name
+get_clause_3 : GET range_id FROM table_name
+
+scan_clause_1 : SCAN name_list FROM table_name
+scan_clause_2 : SCAN ( name_list ) FROM table_name
+scan_clause_3 : SCAN range_id FROM table_name
+
+put_clause    : PUT table_name
+
+update_clause : UPDATE table_name
+
+delete_clause : DELETE FROM table_name
+```
+
+附属从句定义：
+
+```
+by_clause_1   : BY id
+by_clause_2   : BY id DESC
+by_clause_3   : BY DESC
+
+when_clause   : WHEN expr
+where_clause  : WHERE expr
+filter_clause : FILTER expr
+
+on_clause_1   : ON set_list
+on_clause_2   : ON ( set_list )
+
+set_clause_1  : SET set_list
+set_clause_2  : SET ( set_list )
+
+add_clause_1  : ADD set_list
+add_clause_2  : ADD ( set_list )
+
+del_clause_1  : DEL set_list
+del_clause_2  : DEL ( set_list )
+
+rmv_clause_1  : RMV name_list
+rmv_clause_2  : RMV ( name_list )
+```
+
+上述子句中，在 SELECT、GET、SCAN、ON、SET、ADD、DEL、RMV 关键字之后若跟一个列表（列表中各项用逗号分割），还可以用括号将列表括起来，这么书写更美观些。
+
+比如下面两条语句是等效的，后一条更易读。
+
+``` sql
+SELECT fieldA,fieldB FROM table WHERE key=@key
+
+SELECT (fieldA,fieldB) FROM table WHERE key=@key
+```
+
+其它语法定义：
+
+```
+range_id     : ALL | COUNT
+
+attr_path_1  :  id
+attr_path_2  :  attr_path . id
+attr_path_3  :  attr_path [ NUMBER ]
+
+name_list_1  :  attr_path
+name_list_2  :  name_list , attr_path
+
+table_name_1 :  id
+table_name_2 :  table_name / id
+
+expr_1       :  TRUE | FALSE | STRING | NUMBER
+expr_2       :  @ id
+expr_3       :  attr_path
+expr_4       :  id ( )
+expr_5       :  id ( expr_list )
+expr_6       :  expr OP expr
+expr_7       :  ( expr )
+
+expr_list_1  :  expr
+expr_list_2  :  expr_list , expr
+
+set_list_1   :  attr_path = expr
+set_list_2   :  set_list , attr_path = expr
+```
+
+### 6. 表达式
+
+表达式主要用在两个场合，一是用在条件句中，如 WHEN、WHERE、FILTER 条件式，二是表达被赋值数据。
+
+如上面语法定义中介绍，TRUE、FALSE、STRING、NUMBER 立即数被视作表达式（expr_1），引用一个变量（`@ id`）是表达式（expr_2），引用现有字段数据（`attr_path`）是表达式（expr_3），另外，函数调用（expr_4 与 expr_5）是表达式，数学运算或逻辑运算（`expr OP expr`）也是表达式（expr_6），用括号括起来表达运算优先级也是表达式（expr_7）。
+
+#### 6.1 多级表达式
+
+引用现有字段数据允许取 List 子项及 Map 子成员，比如字段 fieldA 是 Map 类型，`fieldA.members` 是其子成员，为 List 类型，可用 `fieldA.members[0]` 表达该 List 数组的首个数据。
+
+比如下面查询语句用到的 `fieldX[0].age`，也是多级表达形式：
+
+``` sql
+SELECT ALL FROM table WHERE key=@key FILTER fieldX[0].age > 20
+```
+
+DynamoDB 允许更新指定记录的特定字段的局部内容，在 UPDATE 句式中也用到这种多级表达形式，比如：
+
+``` sql
+UPDATE table WHEN key=@key SET fieldX[0].age = 20
+```
+
+#### 6.2 运算符
+
+D-SQL 只支持二元操作符，不支持一元与三元操作，一元运算如 “取反” 要改用函数去实现，比如 `not_of(expr)` 等效于 `(NOT expr)`，同样，三元运算如 `(a BETWEEN b AND c)` 要改用 `between(a,b,c)`。
+
+D-SQL 支持的二元操作符有：
+
+1. 赋值：`=`
+2. 相等比较：`=`
+3. 其它比较：`<>  >  >=  <  <=`
+4. 数值加减运算：`+  -`
+5. 逻辑运算：`AND  OR`
+
+如下几类运算的优先级排序如下（优先级高的排在前面）：
+1. `+  -`
+2. 赋值运算（`=`），比较运算（`=  <>  >  >=  <  <=`）
+3. `AND`
+4. `OR`
+
+上面操作运算的优先级可被 “括号” 强行改变，比如下面两个表达式计算规则不一样：
+
+``` js
+exprA OR exprB AND exprC
+
+(exprA OR exprB) AND exprC
+```
+
+#### 6.3 DynamoDB 支持的函数调用
+
+如下函数在 DynamoDB API 已支持，D-SQL 原样提供：
+
+``` js
+begins_with(attr_path,subStr)
+
+attribute_exists(attr_path)
+
+attribute_not_exists(attr_path)
+
+attribute_type(attr_path,type)
+
+contains(attr_path,expr)
+
+size(attr_path)
+```
+
+如下函数将由 D-SQL 自动翻译成 DynamoDB API 所支持的形式：
+
+``` js
+not_of(expr)
+
+exists_in(attr_path,a_set)
+
+between(attr_path,from,to)
+```
+
+也即，`not_of` 译成 `(NOT expr)`，`exists_in` 译成 `(a IN b)`，`between` 译成 `(a BETWEEN b AND c)`。
+
+除了以上函数，下面两个 DynamoDB 已支持的函数在 UPDATE 的 SET 子句中也受支持：
+
+``` js
+if_not_exists(attr_path,expr)
+
+list_append(attr_path,expr)
+```
+
+### 7. 定制扩展
+
+dynamo-sql 尝试定义一套较通用的 SQL 句式，不只适应 DynamoDB，其它 no-sql 经适配也尽可能适用。所以，D-SQL 规格中特意将某些 “非通用项目” 移到 ON 子句去实现，因为 ON 子句并不强制各数据库都采用相同规格。
+
+#### 7.1 使用配置项
+
+D-SQL 针对 DynamoDB 已用配置项包括：
+
+1. `capacity`，对应于 `params.ReturnConsumedCapacity`
+2. `consistent`，对应于 `params.ReturnConsumedCapacity`
+3. `limit`，对应于 `params.Limit`
+4. `last`，对应于 `params.ExclusiveStartKey`
+5. `segments`，对应于 `params.TotalSegments`
+6. `segment`，对应于 `params.Segment`
+7. `return`，对应于 `params.ReturnValues`
+
+详情请参考 AWS DynamoDB 的 API 手册。
+
+#### 7.2 应用到其它数据库系统
+
+如果有人想将 D-SQL 适配到其它 no-sql 数据库系统，建议先读懂 dynamo-sql 全部源码，然后尽可能保持 D-SQL 规格不变，将 D-SQL 翻译成目标 DB 的 API 时做定制。也即，源文件 `sql_yacc.js` 用于将 D-SQL 生成抽象语法树（AST），可以维持不动，另一个源文件 `dynamo.js` 用于配置目标 DB 系统，可以照抄定制。代码量不大，照猫画虎即可。
+
+&nbsp;
+<!-- SLIDE PAGES V1.0, DO NOT CHANGE THIS LINE. -->
+<div $=ScenePage key="auto0"></div>
+<div $=ScenePage key="auto1" no-show="1"></div>

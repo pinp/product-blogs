@@ -1,0 +1,99 @@
+为 no-sql 数据库设计一套通用的 SQL
+----------
+
+&nbsp;
+
+本文介绍 dynamo-sql 项目开发的初衷、设计目标、以及实现要点。
+
+&nbsp;
+
+### 1. no-sql 数据库的标准化需求
+
+众所周知，业界主流的关系数据库长得普遍类似，因为有 SQL 规范约束，再另类的 DB 系统也不会太过于标新立异。所以，关系数据库系统通常具备良好的可替换性，从一种 DB 切换到另一种 DB，一般不必付出太大代价。
+
+但不同厂商的 no-sql 系统差别巨大，一方面，因为 no-sql 起步比 sql 晚得多，目前还处于战国纷争时代，没有迹象表明主流 no-sql 可以归并了。另一方面，主流厂商，尤其在 PaaS 层面提供服务的厂商，通常将 no-sql 实施手段与编程语言特性紧密捆绑，典型的如 Google 的 Cloud Datastore，这大大拉低了 no-sql 标准化能力。
+
+对于国内用户，no-sql 可替换的需求远比国外强烈，几个成气候的云计算平台不够中立，像阿里云、腾讯云，自身都是互联网大玩家，其经营范围均覆盖一多半互联网业务。还有一家国外的，AWS，比较中立，技术也先进，可惜水土不服，大家选择 AWS 心里是不安的，哪天他们经营不下去了怎么办，类似 GAE 退出中国重演的机率其实不低。当年笔者花了数月时间用 GAE 开发了一个论坛，即将上线，Google 说走就走，投入全都打水漂了。
+
+不过，事情也没那么悲观。我们做不到 no-sql 广泛可替换性，降低要求，实现小范围、有条件的可替换似乎也没那么难。在公有云领域，亚马逊处于绝对领先位置，据 Gartner 最近全球云市场份额报告显示，AWS 所占份额两倍于第二名至第十名份额的总和，这是一家独大的态势。在这一市场格局下，如果 AWS 提供的某项服务是优质的、技术领先的，那么，业界的技术标准就该向他看齐，而 AWS DynamoDB 正好满足此条件。
+
+**如果为 DynamoDB 设计一套通用的 SQL 规格，新兴云计算厂商推出的 no-sql 又是仿 DynamoDB 设计的，我们退而求其次的 “可替换性设计目标” 就达到了。**况且，针对国内市场，新兴厂商向老大看齐，保持兼容性，能从老大那里分流部分用户，算是不错的市场策略。
+
+### 2. 已有 no-sql 数据库的 DSL 设计
+
+为 no-sql 数据库套一层类 SQL 的 DSL 描述层在业界较常见，像 Google 为他的 Cloud Datastore 加了一层 GQL 描述，针对 DynamoDB 业界也有数个增设 SQL 层的开源项目。这里，我先简单介绍这些 SQL-like 的规格特色。
+
+[Google 的 GQL](https://cloud.google.com/appengine/docs/standard/python/datastore/gqlreference) 只提供 SELECT 查询，只读不写，我估计它之所以不支持记录更新，是因为 Datastore 的字段读写已融入编程特性，以对象化方式描述表、记录、字段，写操作是直接的赋值语句，上下文还融合了事务处理语句。所以，让 GQL 支持数据库写操作反而会变得不方便。
+
+给 DynamoDB 追加 SQL 的开源项目在 github 能找到五个以上，做得较好有：
+1. [DynamoDb.SQL](https://github.com/fsprojects/DynamoDb.SQL)
+2. [DQL](https://github.com/stevearc/dql)
+3. [dynamodb-sql](https://github.com/awspilot/dynamodb-sql)
+
+DynamoDb.SQL 基于 .Net 平台，只供查询，没支持 update、delete 等写操作，DQL 基于 Python，有查询，也提供 insert、update、delete 等写操作，甚至还提供 create table 操作。dynamodb-sql 基于 Javascript，设计功能较全，遗憾的是，功能还没做完作者停止开发了。
+
+这些项目总有一些缺陷，尤其未注重 “通用性” 设计，在跨 DB 可移植方面考虑得较少。具体而言，像 create table、descript table 这类跨越 DB 很难寻求一致设计的指令就不该去做；还有一些专属特性，应理解为 “配置参数”，而非表现为 SQL 语言规格，做成语言规格就不容易跨 DB 获得普遍支持。
+
+因为缺少现成的，我们就自己动手新做了一个，即 dynamo-sql，用 Javascript 开发，已在 github 上开源，[项目主页在这里](https://github.com/pinp/dynamo-sql)。有关 dynamo-sql 的 SQL 规格，请参考 <a target="_blank" href="index.html?page=D171220-02.txt">这篇介绍</a>。
+
+### 3. SQL 与 NO-SQL 的差异
+
+SQL 作为一种领域专用语言（Domain Specific Language，DSL），之所以在传统数据库上产生，无非为了达到 “一致规格” 与 “简化应用” 两个目的，我们为 DynamoDB 设计 SQL 也同样基于这两个目的。但针对 no-sql 的 DSL 设计似乎更麻烦些，因为你面对的是 “非结构化” 的数据表，得针对传统数据库与 no-sql 数据库的关键差异，有重点的去解决问题。
+
+先来对比 SQL 与 no-sql 的差异，有一个视频讲得很好，[SQL vs NoSQL: Battle of the Backends](https://www.youtube.com/watch?v=rRoy6I4gKWU)，请自行搬梯访问。我截一张图放给大家看看：
+
+![SQL vs. NO-SQL](md/res/D171220-02/sql_nosql.png)
+
+图中对比的是 Google 的两类数据库服务，Datastore 是 no-sql，Cloud SQL 是在云端开放的类似 MySQL 的传统 DB 系统。传统 SQL 在查询、事务处理、一致性方面占优，而在横向伸展、易管理、Schema 变更方面不如 no-sql。
+
+尽管 MySQL 为应对伸展扩容问题，也发展出 “分片” 等技术，但本质没变，拿它去解决该用 no-sql 实现的系统，就像破漏的船只，无论怎么修补，都无法从根上解决问题。事实上，在微服务框架体系里，什么时候该用 SQL，什么时候该用 no-sql，划分标准还是很清晰的，数据库如何选型也实际指导了微服务如何划分。一个产品如果没采用微服务架构，SQL 与 no-sql 如何选型是个大问题，而微服务框架下，在两大 DB 之间如何选择就不该成问题。要命的是，某新兴公有云服务商还缺一个像样的 no-sql 系统，手头只一把锤子，于是尝试用传统那套东西解决所有问题，既然都进军公有云了，还陷在私有云思路里，迟早会出问题的。有点扯远了，前几天我参加了一个云计算分享会，有点感触顺便提一下。
+
+回到 no-sql 的本质，我想，抓住 “分级索引” 特性是问题的关键。以 DynamoDB 为例，有 “主键”，没 “外键”，主键又有 “分区键” 与 “排序键”，分区键提供全局检索，相当于有两层表格体系，第一层解决某条记录的全局检索，决定把它的内容保存到哪个分区中，第二层则是指定分区中表格，分区确定了，在分区内建立的索引称为 “本地二级索引”，即 LSI。如果单以主键还满足不了全局查询的需求，那就再建 “全局二级索引”，即 GSI。
+
+由于索引方式差别巨大，SQL 与 no-sql 在 DSL 表述时，也表现出巨大差异。比如，后者的 DSL 不再支持多索引联合查询，也不支持 join 等复杂操作。不过，no-sql 在查询的过滤条件，update 前的判断条件等，有更丰富支持。
+
+### 4. 不过度封装
+
+AWS-SDK 的 DynamoDB 通过类似如下代码操作数据库：
+
+``` js
+dynamodb.getItem(params, function(err,data) {
+  // ...
+});
+```
+
+对于 GET 操作，调用 `dynamodb.getItem()`，对于 PUT 操作，调用 `dynamodb.putItem()`，其它操作，如 SELECT、SCAN、UPDATE、DELETE 等都通过不同 API 调用实现，各 API 规格一样，都用 `params` 参数指明如何操作。所以，我们封装的 SQL 语句，经翻译，都准确生成所需的 `params` 参数，再由 AWS-SDK 最后实现数据库作业。
+
+如何封装 SQL？我们面临两种选择，一是简单处理，近似于直译，让 SQL 的能力与 AWS-SDK 提供的接口一一对应，二是提供 PaaS 级别的封装，把易用性再提高一些。
+
+AWS 的 DynamoDB 按官方的提法，是 IaaS 层面的服务，与之可对照的是 Google 的 Datastore，是 PaaS 服务。这两种 DB 除了规格特性不同之外，所谓 IaaS 与 PaaS 的差别，无非后者稍多一点封装而已，实质差别并不大。
+
+最终我们还是选择了简单直译的方式，如果想多封装些，也就下面几点可改进：
+
+1. 追加事务处理   
+设置事务起始标志，事务处理中出错后允许回退，Google 的 Datastore 支持事务处理，功能不如传统数据库的事务机制那么强大，但封装后还是能让设计简化一些的。在 DynamoDB 现有 API 基础上封装对等的事务机制并不难，因为一致性读、有条件写入、返回写入前旧值等特性是现成的，增加一些事务处理规则，实现起来代码量不算太大。   
+不过，就算提供事务支持，封装本身存在风险，你屏蔽了一些开发者该知道的处理过程，当系统出异常要定位问题时，事务封装将成障碍。
+
+2. 索引与排序做点优化   
+受限于 DynamoDB 底层机制，可做的事情不多。
+
+### 5. 兼容 S3 Select 查询
+
+AWS 新近推出 S3 Select 服务，它用一种类似 SQL 的查询语句，直接用一个命令提取 S3 文件，一般是 CSV 数据表文件，然后由 S3 实施查询，只返回合乎条件的数据集，而不是 CSV 整个文件的内容。这项服务可节约不少流量成本，结合 S3 的静态网站功能显得比较有意义。
+
+既然，我们为 DynamoDB 封装了 SQL，为什么不把这 SQL 规格延伸到 S3 呢？让 DynamoDB 提供强服务 DB，让 S3 提供弱服务 DB，形成双级服务机制。
+
+如下是查询 S3 文件 DB 的例子：
+
+``` sql
+SELECT fieldA,fieldB FROM s3/file_db
+```
+
+与查询 DynamoDB 差别在于，表名要有 `"/"` 分隔。此特性目前还没实现（语法分析已支持），留以后去做。
+
+不多说了，dynamo-sql 项目的代码量不大，感兴趣的童鞋请读源码，欢迎各家云服务商重用该 SQL 规格，为自家 no-sql 提供封装。如需交流请发邮件：shadow_widget@126.com 。
+
+&nbsp;
+<!-- SLIDE PAGES V1.0, DO NOT CHANGE THIS LINE. -->
+<div $=ScenePage key="auto0"></div>
+<div $=ScenePage key="auto1" no-show="1"></div>

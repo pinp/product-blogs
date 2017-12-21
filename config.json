@@ -1,9 +1,33 @@
 {
   "version": "1.0",
-  "last_modify": 0,
+  "last_modify": 1513847261786,
   "user_name": "rewgt",
-  "imported_repos": [["https://pinp.github.io/blogs/","Online help"]],
+  "imported_repos": [
+    [
+      "https://pinp.github.io/blogs/",
+      "Online help"
+    ]
+  ],
   "repos_name": "blogs",
   "repos_desc": "Blog",
-  "doc_list": []
+  "doc_list": [
+    {
+      "path": "md/D171220-02.txt",
+      "tag": ".数据库",
+      "markdown": true,
+      "title": "dynamo-sql 语法规格",
+      "modify_at": 1513765595175,
+      "create_at": 1513736949693,
+      "desc": "本文介绍 dynamo-sql 的语法规格，包括数据类型、SQL 词法规则、语法规则等。"
+    },
+    {
+      "path": "md/D171220-01.txt",
+      "tag": ".数据库",
+      "markdown": true,
+      "title": "为 no-sql 数据库设计一套通用的 SQL",
+      "modify_at": 1513847261786,
+      "create_at": 1513730977617,
+      "desc": "本文介绍 dynamo-sql 项目开发的初衷、设计目标、以及实现要点。"
+    }
+  ]
 }
