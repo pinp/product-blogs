@@ -265,11 +265,26 @@ if_not_exists(attr_path,expr)
 list_append(attr_path,expr)
 ```
 
-### 7. 定制扩展
+### 7. 在 DynamoDB 上的使用效果
+
+dynamo-sql 项目的最小目标是，让基于 AWS DynamoDB 的软件开发过程变简单，目前本库已在多个产品中应用，收效明显。
+
+主要体现在以下几个方面：
+
+1. 简化了 DynamoDB 原生的 API 使用方式，原 API 涉及参数项较多，规则也较多，开发时要经常查阅 AWS 的 SDK 手册。现在简化为 SQL 描述语句与及`sql.process({vars},callback)` 传入的变量，用法变清晰、简单了。
+
+2. 避开了 DynamoDB 多保留字冲突，比如现在用 `WHERE info.name="wayne"` 描述起来很简单，若用原生 API，`ConditionExpression` 写成 `info.name = :name` 有问题，因为 `"name"` 是保留字，你要改写成 `info.#name = :name`，然后用 `ExpressionAttributeNames` 参数指定 `{'#name':'name'}`，使用起来很麻烦。而且 DynamoDB 的保留字有 573 个，不区分大小写，实际上，你已法靠记忆来区分一个单词是否为保留字了。dynamo-sql 能自动转换合适的 `ConditionExpression` 与 `ExpressionAttributeNames` 参数，不再有此麻烦。
+
+3. dynamo-sql 支持在 SQL 语句指定 TRUE/FALSE/<number>/<string> 四种字面常量描述，诸如：`SET name="wayne",age=20` 等句式写直接书写。若换作原生 API，您需改用变量引用方式，然后借 `ExpressionAttributeValues` 参数传递变量值，dynamo-sql 已封装，也省掉此项麻烦。
+
+4. dynamo-sql 提供两项信息打印，对 SQL 语句书写有误，定位问题提供帮助。一是创建 `sql` 实例后，可用 `sql.log()` 查句语法分析结果；二是调用 `sql.process({vars},callback,true)` 第 3 个参数用于打印实际翻译成原生 DynameDB 所用的 `param` 参数值。
+
+
+### 8. 定制扩展
 
 dynamo-sql 尝试定义一套较通用的 SQL 句式，不只适应 DynamoDB，其它 no-sql 经适配也尽可能适用。所以，D-SQL 规格中特意将某些 “非通用项目” 移到 ON 子句去实现，因为 ON 子句并不强制各数据库都采用相同规格。
 
-#### 7.1 使用配置项
+#### 8.1 使用配置项
 
 D-SQL 针对 DynamoDB 已用配置项包括：
 
@@ -283,9 +298,13 @@ D-SQL 针对 DynamoDB 已用配置项包括：
 
 详情请参考 AWS DynamoDB 的 API 手册。
 
-#### 7.2 应用到其它数据库系统
+#### 8.2 应用到其它数据库系统
 
 如果有人想将 D-SQL 适配到其它 no-sql 数据库系统，建议先读懂 dynamo-sql 全部源码，然后尽可能保持 D-SQL 规格不变，将 D-SQL 翻译成目标 DB 的 API 时做定制。也即，源文件 `sql_yacc.js` 用于将 D-SQL 生成抽象语法树（AST），可以维持不动，另一个源文件 `dynamo.js` 用于配置目标 DB 系统，可以照抄定制。代码量不大，照猫画虎即可。
+
+&nbsp;
+
+(本文完）
 
 &nbsp;
 <!-- SLIDE PAGES V1.0, DO NOT CHANGE THIS LINE. -->

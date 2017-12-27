@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_modify": 1513862634222,
+  "last_modify": 1514339786555,
   "user_name": "rewgt",
   "imported_repos": [
     [
@@ -16,7 +16,7 @@
       "tag": ".数据库",
       "markdown": true,
       "title": "dynamo-sql 语法规格",
-      "modify_at": 1513851867250,
+      "modify_at": 1514339786555,
       "create_at": 1513736949693,
       "desc": "本文介绍 dynamo-sql 的语法规格，包括数据类型、SQL 词法规则、语法规则等。"
     },
